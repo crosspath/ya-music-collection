@@ -8,6 +8,14 @@ class MusicAPI
     @logger = logger
   end
 
+  def add_like_to_track(user_id, track_id, album_id)
+    url = "/users/#{user_id}/likes/tracks/add?track-id=#{track_id}%3A#{album_id}"
+    response = @connection.post_form(url, {})
+    raise_on_error(response, "Cannot add like to track. Please update cookies!")
+
+    JSON.parse(response.body)
+  end
+
   def add_tracks(user_id, playlist_kind, revision, tracks)
     # {"id":"id","albumId":album_id},...
     diff_tracks = tracks.map { |x| "%7B%22id%22%3A%22#{x["id"]}%22%2C%22albumId%22%3A#{x["album_id"]}%7D" }.join(",")

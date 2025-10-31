@@ -24,16 +24,17 @@ class Playlist
   def add_tracks(logger, tracks)
     connection = Connection.new(@cookie)
     api = MusicAPI.new(connection, logger)
-    playlist_kind = @playlist["kind"]
-    playlist_id = @playlist["playlistUuid"]
-    revision = @playlist["revision"]
     user_id = @playlist["uid"]
 
-    puts "Add tracks to #{playlist_id}"
+    puts "Add tracks to #{@playlist["playlistUuid"]}"
 
-    tracks.reverse.each_slice(4) do |portion|
-      body = api.add_tracks(user_id, playlist_kind, revision, portion.reverse)
-      revision = body["revision"]
+    if with_likes?
+      add_likes_to_tracks(api, user_id, tracks)
+    else
+      playlist_kind = @playlist["kind"]
+      revision = @playlist["revision"]
+
+      add_tracks_to_playlist(api, user_id, playlist_kind, revision, tracks)
     end
   ensure
     connection&.finish
@@ -84,10 +85,24 @@ class Playlist
   end
 
   def select_new(tracks)
-    Playlist.diff(tracks, @playlist["tracks"])
+    diff = Playlist.diff(tracks, @playlist["tracks"])
+    diff.select! { |track| track["available"] } if with_likes?
+
+    diff
   end
 
   private
+
+  def add_likes_to_tracks(api, user_id, tracks)
+    tracks.reverse_each { |track| api.add_like_to_track(user_id, track["id"], track["album_id"]) }
+  end
+
+  def add_tracks_to_playlist(api, user_id, playlist_kind, revision, tracks)
+    tracks.reverse.each_slice(4) do |portion|
+      body = api.add_tracks(user_id, playlist_kind, revision, portion.reverse)
+      revision = body["revision"]
+    end
+  end
 
   def collect_ranges(indexes)
     ranges = []
@@ -106,5 +121,9 @@ class Playlist
     ranges << current_range
 
     ranges
+  end
+
+  def with_likes?
+    @playlist["playlistUuid"].start_with?("lk.")
   end
 end
